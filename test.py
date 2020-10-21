@@ -12,13 +12,15 @@ import graph
 
 sg = synth.Signal()
 
-wt = synth.WaveTable(2048)
+wt = synth.WaveTable(4096)
 wt.clear()
 s = synth.Signal().sin()
 s2 = synth.Signal(harm=1).saw()
-wt.waves = ([s]*1024) + ([s2*1024])
+s3 = synth.Signal(harm=3).sin()
+s4 = synth.Signal(harm=2).saw()
+wt.waves = ([s]*1024) + ([s2]*1024)+([s3]*1024) + ([s4]*1024)
 
 wt.write('test.wav')
 
-graph.plot_wave(s)
+graph.plot_wavetable(wt)
 

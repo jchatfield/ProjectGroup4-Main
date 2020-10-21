@@ -8,9 +8,21 @@ Created on Sun Oct 18 00:55:26 2020
 import math
 import wave
 import pyaudio
+import struct
 import numpy as np
 from scipy import interpolate
 
+
+
+def float_to_bytes(vals):
+        """ Convert a sequence of vals to 16-bit bytes """
+    
+        num = len(vals)
+        afloats = np.array(vals)
+        afloats = (afloats * 32768).astype('int')
+        np.clip(afloats, -32768, 32767, out=afloats)
+        return struct.pack('<{0}h'.format(num), *(aval for aval in afloats))   
+    
 class Signal(object):
     
 
@@ -75,6 +87,14 @@ class Signal(object):
     def sin(self):
         
         return self.amp * self.cycle(np.sin(np.pi * self.ramp))
+    
+    def tri(self):
+        """ Generate a triangle """
+
+        # shift to start at 0
+        shift = -self.num_points // (4 * (self.harmonic + 1))
+
+        return np.roll(self.amp * self.arb((np.abs(self._base[:-1]))), shift)
 
     
     def cycle(self, data):
@@ -135,8 +155,8 @@ class WaveTable(object):
                 self.wave_len = len(value[0])
                 self.table = value
             else:
-                self.table = [Signal(num_samples=self.wave_len).cycle(x) for x in value]
-  
+                self.table = [Signal(num_samples=self.wave_len).cycle(x) for x in value]   
+    
     def clear(self):
        # Clear wavetable
 
@@ -161,22 +181,39 @@ class WaveTable(object):
 
         for i in range(self.num_slots):
             yield self.get_index(i)
-            
-    def write(self, filename, samplerate=44100):
-        # #Write wavetable to file
-        # #Make sure filename has .wav extension
     
-        wave_file = wave.open(filename, 'w')
-        wave_file.setnchannels(1)
-        wave_file.setsampwidth(4)
-        wave_file.setframerate(samplerate)
+   
+    # def write(self, filename, samplerate=44100):
+    #     # #Write wavetable to file
+    #     # #Make sure filename has .wav extension
+    #     for i_waves in 
+    #     all = np.array(self.get_waves)
+                
+    #     wave_file = wave.open(filename, 'w')
+    #     wave_file.setnchannels(1)
+    #     wave_file.setsampwidth(4)
+    #     wave_file.setframerate(samplerate)
         
-        for i_wave in self.get_waves():
-            wave_file.writeframes(bytes(i_wave))   
+
+    #     # for i_wave in self.get_waves():
+    #     wave_file.writeframes(bytes(all))   
+    #     wave_file.close()
+    def write(wavetable, filename, samplerate=44100):
+        """ Write wavetable to file """
+
+        wave_file = wave.open(filename, 'w')
+        wave_file.setframerate(samplerate)
+        wave_file.setnchannels(1)
+        wave_file.setsampwidth(2)
+        
+        for wt_wave in wavetable.get_waves():
+            wave_file.writeframes(float_to_bytes(wt_wave))
+       
         wave_file.close()
+            
    
         # Set chunk size of 1024 samples per data frame
-        chunk = 1024
+        chunk = 128
     
         
         # Open the sound file 
@@ -202,10 +239,12 @@ class WaveTable(object):
                 data = wf.readframes(chunk)
             if data == b'':
                 break
+            
         # Close and terminate the stream
         wf.close()
         stream.stop_stream()
         stream.close()
       
         p.terminate()
+        
         print("Created " + filename)
