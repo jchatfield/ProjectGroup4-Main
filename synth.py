@@ -204,7 +204,7 @@ class WaveTable(object):
         wave_file = wave.open(filename, 'w')
         wave_file.setframerate(samplerate)
         wave_file.setnchannels(1)
-        wave_file.setsampwidth(2)
+        wave_file.setsampwidth(4)
         
         for wt_wave in wavetable.get_waves():
             wave_file.writeframes(float_to_bytes(wt_wave))
