@@ -7,19 +7,22 @@ Created on Sun Oct 18 00:55:26 2020
 
 import math
 import wave
+import pyaudio
 import numpy as np
 from scipy import interpolate
 
 class Signal(object):
     
 
-    def __init__(self, num_samples=128, amp=0.7, phase=0, harm=0, pitch=60):
+    def __init__(self, num_samples=128, amp=0.7, phase=0, harm=0, pitch=69):
 
+        self.pitch =  int(2**((pitch-69)/12)*440) #Hz 
+        skip = abs(((self.pitch-69)/12))
         self.num_samples = num_samples
         self.amp = amp
         self.phase = phase
         self.harm = harm
-        self.pitch = 2**((pitch-69)/12)*440 #Hz 
+   
         
     @property
     def ramp(self):
@@ -30,8 +33,9 @@ class Signal(object):
         start = normal_phase
         stop = start + repeats
 
-        sig = np.linspace(start, stop, num= self.num_samples, dtype=np.float32)
         
+           
+        sig = np.linspace(start, stop, num= self.num_samples, dtype=np.float32)
         
         
         # wrap and shift to +/- 1
@@ -40,16 +44,16 @@ class Signal(object):
         sig *= 2
         sig[sig > 1] -= 2
         
-        
-        samples = []
-        current_sample = 0
-        while len(samples) < self.num_samples:
-            current_sample += self.pitch
-            current_sample = current_sample % sig.size
-            samples.append(sig[current_sample])
-            current_sample += 1
+        return sig
+        # samples = []
+        # current_sample = 0
+        # while len(samples) < self.num_samples:
+        #     current_sample += self.pitch
+        #     current_sample = current_sample % sig.size
+        #     samples.append(sig[current_sample])
+        #     current_sample += 1
 
-        return np.array(samples)
+        # return np.array(samples)
     
     def normalize(inp):
 
@@ -85,8 +89,12 @@ class Signal(object):
 
         if data.size == self.num_samples:
             return data
+        
+        new_data = np.array()
+        for i in range(0, len(data), 1+skip):
+            new_data += data[i]
 
-        interp_y = data
+        interp_y = new_data
         num = interp_y.size
         interp_x = np.linspace(0, num, num=num)
         interp_xx = np.linspace(0, num, num=self.num_samples)
@@ -155,16 +163,49 @@ class WaveTable(object):
             yield self.get_index(i)
             
     def write(self, filename, samplerate=44100):
-        #Write wavetable to file
-        #Make sure filename has .wav extension
+        # #Write wavetable to file
+        # #Make sure filename has .wav extension
     
         wave_file = wave.open(filename, 'w')
-        wave_file.setframerate(samplerate)
         wave_file.setnchannels(1)
         wave_file.setsampwidth(4)
+        wave_file.setframerate(samplerate)
         
         for i_wave in self.get_waves():
             wave_file.writeframes(bytes(i_wave))   
         wave_file.close()
+   
+        # Set chunk size of 1024 samples per data frame
+        chunk = 1024
+    
         
+        # Open the sound file 
+        wf = wave.open(filename, 'rb')
+        
+        # Create an interface to PortAudio
+        p = pyaudio.PyAudio()
+        
+        # Open a .Stream object to write the WAV file to
+        # 'output = True' indicates that the sound will be played rather than recorded
+        stream = p.open(format = pyaudio.paFloat32,
+                        channels = 1,
+                        rate = samplerate,
+                        output = True)
+        
+        # Read data in chunks
+        data = wf.readframes(chunk)
+        
+        # Play the sound by writing the audio data to the stream
+        while True:
+            if data != '':
+                stream.write(data)
+                data = wf.readframes(chunk)
+            if data == b'':
+                break
+        # Close and terminate the stream
+        wf.close()
+        stream.stop_stream()
+        stream.close()
+      
+        p.terminate()
         print("Created " + filename)
