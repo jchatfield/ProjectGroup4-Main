@@ -5,7 +5,7 @@ Created on Sun Oct 18 00:55:26 2020
 @author: Dime
 """
 
-import math
+import time
 import wave
 import pyaudio
 import struct
@@ -15,7 +15,7 @@ from scipy import interpolate
 
 
 def float_to_bytes(vals):
-        """ Convert a sequence of vals to 16-bit bytes """
+        """ Convert a sequence of float values to 16-bit bytes """
     
         num = len(vals)
         afloats = np.array(vals)
@@ -26,10 +26,11 @@ def float_to_bytes(vals):
 class Signal(object):
     
 
-    def __init__(self, num_samples=128, amp=0.7, phase=0, harm=0, pitch=69):
+    def __init__(self, num_samples=int(5*48000), amp=0.6, phase=0, harm=0):
 
-        self.pitch =  int(2**((pitch-69)/12)*440) #Hz 
-        skip = abs(((self.pitch-69)/12))
+        #self.freq =  int(2**((pitch-69)/12)*440) #convert to Hz 
+        #self.pitch = pitch
+        #self.skip = abs(((self.pitch-69)/12))
         self.num_samples = num_samples
         self.amp = amp
         self.phase = phase
@@ -92,13 +93,13 @@ class Signal(object):
         """ Generate a triangle """
 
         # shift to start at 0
-        shift = -self.num_points // (4 * (self.harmonic + 1))
+        shift = -self.num_samples // (4 * (self.harm + 1))
 
-        return np.roll(self.amp * self.arb((np.abs(self._base[:-1]))), shift)
+        return np.roll(self.amp * self.cycle((np.abs(self._base[:-1]))), shift)
 
     
     def cycle(self, data):
-        # Generate a wave cycle and auto-interpolate as necessary depending on frequency
+        # Generate a wave cycle and auto-interpolate as necessary
       
         try:
             dtype = type(data)
@@ -111,7 +112,7 @@ class Signal(object):
             return data
         
         new_data = np.array()
-        for i in range(0, len(data), 1+skip):
+        for i in range(0, len(data)):
             new_data += data[i]
 
         interp_y = new_data
@@ -128,13 +129,15 @@ class Signal(object):
 class WaveTable(object):
     """ An n-slot wavetable """
 
-    def __init__(self, num_slots, pitch=60, fs=44100, waves=None, wave_len=None):
+    def __init__(self, num_slots, pitch=60, fs=48000, waves=None, wave_len=None):
         #waves is a sequence of numpy arrays
 
         self.num_slots = num_slots
         self.wave_len = wave_len
-        self.pitch = pitch
         self.fs = fs
+        self.freq = int(2**((pitch-69)/12))*440
+        self.inc = self.freq * (self.num_slots / self.fs)
+      
         
         self.table = []
 
@@ -178,73 +181,64 @@ class WaveTable(object):
 
     def get_waves(self):
        #return all waves loaded on table
-
-        for i in range(self.num_slots):
-            yield self.get_index(i)
-    
-   
-    # def write(self, filename, samplerate=44100):
-    #     # #Write wavetable to file
-    #     # #Make sure filename has .wav extension
-    #     for i_waves in 
-    #     all = np.array(self.get_waves)
-                
-    #     wave_file = wave.open(filename, 'w')
-    #     wave_file.setnchannels(1)
-    #     wave_file.setsampwidth(4)
-    #     wave_file.setframerate(samplerate)
-        
-
-    #     # for i_wave in self.get_waves():
-    #     wave_file.writeframes(bytes(all))   
-    #     wave_file.close()
-    def write(wavetable, filename, samplerate=44100):
-        """ Write wavetable to file """
-
-        wave_file = wave.open(filename, 'w')
-        wave_file.setframerate(samplerate)
-        wave_file.setnchannels(1)
-        wave_file.setsampwidth(4)
-        
-        for wt_wave in wavetable.get_waves():
-            wave_file.writeframes(float_to_bytes(wt_wave))
        
-        wave_file.close()
+           table = []
+
+           for i in range(self.num_slots):
+               table.append(self.get_index(i))
+               
+           return table
+
             
-   
-        # Set chunk size of 1024 samples per data frame
-        chunk = 128
-    
+    #Reads and returns at most n frames of audio, as a bytes object. (Relative to 1Hz)
+    def readpitch(self, n): 
+        inc = self.inc #increment
+        table = self.get_waves
         
-        # Open the sound file 
-        wf = wave.open(filename, 'rb')
+        x= np.linspace(0, len(table), n)
+        y= table
+        p = [] #have to add new skipped samples to p one-by-one
+        for i in range(0, len(table), inc):
+            p = p.append(table[i])
+            
+        px = np.linspace(0, len(p), n)   
+        weighted = np.interp(px, x, y)
+        
+        new = float_to_bytes(weighted)
+        
+        return new 
+    
+    def write(self, samplerate=48000):
+        """ Write table to audio stream """
+        fs = self.fs
+        sig = np.array(list(self.get_waves()))
+        #table = float_to_bytes(sig)
         
         # Create an interface to PortAudio
         p = pyaudio.PyAudio()
         
-        # Open a .Stream object to write the WAV file to
-        # 'output = True' indicates that the sound will be played rather than recorded
-        stream = p.open(format = pyaudio.paFloat32,
-                        channels = 1,
-                        rate = samplerate,
-                        output = True)
+        # define callback
+        def callback(in_data, frame_count, time_info, status):
+            data = sig.readpitch(frame_count) #have to write my own readframes
+            return (data, pyaudio.paContinue)
         
-        # Read data in chunks
-        data = wf.readframes(chunk)
+        # open stream using callback
+        stream = p.open(format=p.get_format_from_width(2),
+                channels=2,
+                rate= fs,
+                output=True,
+                stream_callback=callback)
         
-        # Play the sound by writing the audio data to the stream
-        while True:
-            if data != '':
-                stream.write(data)
-                data = wf.readframes(chunk)
-            if data == b'':
-                break
+    
+        # start the stream (4)
+        stream.start_stream()
+
+
             
         # Close and terminate the stream
-        wf.close()
-        stream.stop_stream()
-        stream.close()
+        #stream.stop_stream()
+
       
-        p.terminate()
+        #p.terminate()
         
-        print("Created " + filename)
+        print("Created audio")

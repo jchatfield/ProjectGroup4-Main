@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 """
 Created on Wed Oct 21 09:52:20 2020
 
@@ -11,14 +11,13 @@ import graph
 
 
 sg = synth.Signal()
+frames= 100 #frames*128 = total samples
+pitch= 60
 
-wt = synth.WaveTable(4096)
-wt.clear()
+wt = synth.WaveTable(frames, pitch=70)
 s = synth.Signal().sin()
-s2 = synth.Signal(harm=1).saw()
-s3 = synth.Signal(harm=3).sin()
-s4 = synth.Signal(harm=2).saw()
-wt.waves = ([s]*1024) + ([s2]*1024)+([s3]*1024) + ([s4]*1024)
+
+wt.waves = ([s]*int(frames))
 
 wt.write('test.wav')
 
