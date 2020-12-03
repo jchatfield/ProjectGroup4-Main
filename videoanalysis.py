@@ -1,9 +1,7 @@
 import numpy as np
 import cv2
 import math
-import wave
 from scipy import interpolate
-
 #This function analyzes a single video frame and outputs 5
 #different video features, meanRGB, brightness, and entropy
 #The function will be used once per video frame and then output
@@ -30,6 +28,7 @@ def Analyze(frame):
 
 #normalization function given known max and min values and known new max and new min values
 #using to map known values from the video parameters to a different set of values.
+#RGB is mapped to midi which is then converted to frequency, brightness is mapped to volume (0 - 1)
 def Normalize(value,min,max,newmin,newmax):
     normalized = (newmax-newmin)/(max-min)*(value-max) + newmax
     return normalized

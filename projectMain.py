@@ -5,33 +5,7 @@ import videoanalysis
 import math
 import wave
 import pyaudio
-import othertest
 from scipy import interpolate
-
-
-#p is the video player function that will be used to play the synth in the
-#main function
-#p = pyaudio.PyAudio()
-#def playAudio(p,param1,param2,param3,sr):
-
-    #volume = param2/2     # range [0.0, 1.0]
-    #fs = 44100       # sampling rate, Hz, must be integer
-    #duration = 1/sr # in seconds, may be float
-    #f = param1*10 + param3*20        # sine frequency, Hz, may be float
-
-    # generate samples, note conversion to float32 array
-    #samples = (np.sin(2*np.pi*np.arange(fs*duration)*f/fs)).astype(np.float32)
-
-    # for paFloat32 sample values must be in range [-1.0, 1.0]
-    #stream = p.open(format=pyaudio.paFloat32,
-                    #channels=1,
-                    #rate=fs,
-                    #output=True)
-
-    # play. May repeat with different volume values (if done interactively)
-    #stream.write(volume*samples)
-
-    #stream.stop_stream()
 
 
 #MAIN function that loops through the video,analyzes, and plays audio
@@ -40,20 +14,29 @@ def MAIN(video):
     #looping through each frame of video
     cap = cv2.VideoCapture(video)
     framerate = cap.get(cv2.CAP_PROP_FPS)
+
+    #if there is an open frame, then analyze it:
     while(cap.isOpened()):
         ret, frame = cap.read()
         if ret == True:
             meanRed,meanBlue,meanGreen,meanBrightness,meanEntropy = videoanalysis.Analyze(frame)
-            meanBrightness = videoanalysis.Normalize(meanBrightness,0,255,21,128)
+            meanBlue = videoanalysis.Normalize(meanBlue,0,255,55,110)
+            meanRed = videoanalysis.Normalize(meanRed,0,255,55,110)
+            meanGreen = videoanalysis.Normalize(meanGreen,0,255,55,110)
+            midi1 = round(meanRed)
+            midi2 = round(meanBlue)
+            midi3 = round(meanGreen)
+            freq1 = 2**((midi1-69)/12)*440
+            freq2 = 2**((midi2-69)/12)*440
+            freq3 = 2**((midi3-69)/12)*440
+            volume = videoanalysis.Normalize(meanBrightness,0,255,0,1)
+            synth.playsynth(freq1,freq2,freq3,volume)
 
 
-            #playAudio(p,meanBlue,meanEntropy,meanRed,framerate)
-
-
-
-
+            #little function that ends stuff when you press the q key
             cv2.imshow('frame', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                synth.end()
                 break
         else:
             break
@@ -63,5 +46,5 @@ def MAIN(video):
     cv2.destroyAllWindows()
 
 
-video = "oops.mp4"
+video = "finalvid.mp4"
 MAIN(video)
